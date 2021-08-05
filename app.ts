@@ -2,15 +2,25 @@ type Store = {
   currentPage: number;
   feeds: NewsFeed[];
 }
-type NewsFeed = {
+type News = {
   id: number;
-  comments_count: number;
+  time_ago: string;
+  title?: string;
   url: string;
   user: string;
-  time_ago: string;
+  content: string;
+}
+type NewsFeed = News & {
+  comments_count: number;
   points: number;
-  title: string;
-  read?: boolean
+  read?: boolean;
+}
+type ItemFeed = News & {
+  comments: Comments[];
+}
+type Comments = News & {
+  comments: Comments[];
+  level: number;
 }
 
 const rootEl: HTMLElement | null = document.getElementById("root");
@@ -22,14 +32,14 @@ const store: Store = {
   feeds: [],
 };
 
-function ajaxFunc(url) {
+function ajaxFunc<ajaxResponse>(url:string): ajaxResponse {
   ajax.open("GET", url, false);
   ajax.send();
 
   return JSON.parse(ajax.response);
 }
 
-function makeFeeds(feeds) {
+function makeFeeds(feeds: NewsFeed[]) {
   for (let i = 0; i < feeds.length; i++) {
     feeds[i].read = false;
   }
@@ -37,7 +47,7 @@ function makeFeeds(feeds) {
   return feeds;
 }
 
-function updateView(htmlTemplate) {
+function updateView(htmlTemplate: string): void {
   if(rootEl){
     rootEl.innerHTML = htmlTemplate
   } else {
@@ -45,7 +55,7 @@ function updateView(htmlTemplate) {
   }
 }
 
-const newsFeedFunc = () => {
+const newsFeedFunc = (): void => {
   let newsFeed: NewsFeed[] = store.feeds;
   let newFeedAry = [];
   let template = `
@@ -74,7 +84,7 @@ const newsFeedFunc = () => {
   `;
 
   if (newsFeed.length === 0) {
-    newsFeed = store.feeds = makeFeeds(ajaxFunc(NEWS_URL));
+    newsFeed = store.feeds = makeFeeds(ajaxFunc<NewsFeed[]>(NEWS_URL));
   }
 
   for (let i = (store.currentPage - 1) * 10; i < store.currentPage * 10; i++) {
@@ -105,21 +115,21 @@ const newsFeedFunc = () => {
   template = template.replace("{{__news_feed__}}", newFeedAry.join(""));
   template = template.replace(
     "{{__prev_page__}}",
-    store.currentPage > 1 ? store.currentPage - 1 : 1,
+    String(store.currentPage > 1 ? store.currentPage - 1 : 1),
   );
   template = template.replace(
     "{{__next_page__}}",
-    store.currentPage < newsFeed.length / 10
+    String(store.currentPage < newsFeed.length / 10
       ? store.currentPage + 1
-      : newsFeed.length / 10,
+      : newsFeed.length / 10),
   );
 
   updateView(template);
 };
 
-const itemFeedFunc = () => {
+const itemFeedFunc = (): void => {
   const id = location.hash.substr(7);
-  const itemFeed = ajaxFunc(ITEM_URL.replace("@id", id));
+  const itemFeed = ajaxFunc<ItemFeed>(ITEM_URL.replace("@id", id));
   let template = `
     <div class="bg-gray-600 min-h-screen pb-8">
       <div class="bg-white text-xl">
@@ -155,22 +165,23 @@ const itemFeedFunc = () => {
     }
   }
 
-  function makeComment(comments, called = 0) {
+  function makeComment(comments: Comments[]): string {
     const commentString = [];
 
     for (let i = 0; i < comments.length; i++) {
+      const comment = comments[i]
       commentString.push(`
-      <div style="padding-left: ${called * 40}px;" class="mt-4">
+      <div style="padding-left: ${comment.level * 40}px;" class="mt-4">
         <div class="text-gray-400">
           <i class="fa fa-sort-up mr-2"></i>
-          <strong>${comments[i].user}</strong> ${comments[i].time_ago}
+          <strong>${comment.user}</strong> ${comment.time_ago}
         </div>
-        <p class="text-gray-700">${comments[i].content}</p>
+        <p class="text-gray-700">${comment.content}</p>
       </div>      
     `);
 
-      if (comments[i].comments.length > 0) {
-        commentString.push(makeComment(comments[i].comments, called + 1));
+      if (comment.comments.length > 0) {
+        commentString.push(makeComment(comment.comments));
       }
     }
 
@@ -183,7 +194,7 @@ const itemFeedFunc = () => {
   ));
 };
 
-const router = () => {
+const router = (): void => {
   const routePath = location.hash;
   if (routePath === "") newsFeedFunc();
   else if (routePath.indexOf("#/page/") >= 0) {
