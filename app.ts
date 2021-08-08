@@ -1,26 +1,26 @@
-type Store = {
+interface Store  {
   currentPage: number;
   feeds: NewsFeed[];
 }
-type News = {
-  id: number;
-  time_ago: string;
-  title?: string;
-  url: string;
-  user: string;
-  content: string;
+interface News  {
+  readonly id: number;
+  readonly time_ago: string;
+  readonly title?: string;
+  readonly url: string;
+  readonly user: string;
+  readonly content: string;
 }
-type NewsFeed = News & {
-  comments_count: number;
-  points: number;
+interface NewsFeed extends News {
+  readonly comments_count: number;
+  readonly points: number;
   read?: boolean;
 }
-type ItemFeed = News & {
-  comments: Comments[];
+interface ItemFeed extends News {
+  readonly comments: Comments[];
 }
-type Comments = News & {
-  comments: Comments[];
-  level: number;
+interface Comments extends News {
+  readonly comments: Comments[];
+  readonly level: number;
 }
 
 const rootEl: HTMLElement | null = document.getElementById("root");
@@ -31,6 +31,33 @@ const store: Store = {
   currentPage: 1,
   feeds: [],
 };
+
+class Api {
+  url: string;
+  ajax: XMLHttpRequest;
+
+  constructor(url: string) {
+    this.url = url;
+    this.ajax = new XMLHttpRequest();
+  }
+
+  protected getRequest<AjaxResponse>(): AjaxResponse {
+    this.ajax.open("GET", this.url, false);
+    this.ajax.send();
+    return JSON.parse(this.ajax.response);
+  }
+}
+
+class NewsFeedApi extends Api {
+  getData():NewsFeed[] {
+    return this.getRequest<NewsFeed[]>();
+  }
+}
+class NewsDetailApi extends Api {
+  getData():ItemFeed {
+    return this.getRequest<ItemFeed>();
+  }
+}
 
 function ajaxFunc<ajaxResponse>(url:string): ajaxResponse {
   ajax.open("GET", url, false);
@@ -56,9 +83,10 @@ function updateView(htmlTemplate: string): void {
 }
 
 const newsFeedFunc = (): void => {
+  let api = new NewsFeedApi(NEWS_URL)
   let newsFeed: NewsFeed[] = store.feeds;
-  let newFeedAry = [];
-  let template = `
+  let newFeedAry: string[] = [];
+  let template:string = `
     <div class="bg-gray-600 min-h-screen">
       <div class="bg-white text-xl">
         <div class="mx-auto px-4">
@@ -84,7 +112,7 @@ const newsFeedFunc = (): void => {
   `;
 
   if (newsFeed.length === 0) {
-    newsFeed = store.feeds = makeFeeds(ajaxFunc<NewsFeed[]>(NEWS_URL));
+    newsFeed = store.feeds = makeFeeds(api.getData());
   }
 
   for (let i = (store.currentPage - 1) * 10; i < store.currentPage * 10; i++) {
@@ -129,7 +157,8 @@ const newsFeedFunc = (): void => {
 
 const itemFeedFunc = (): void => {
   const id = location.hash.substr(7);
-  const itemFeed = ajaxFunc<ItemFeed>(ITEM_URL.replace("@id", id));
+  const api = new NewsDetailApi(ITEM_URL.replace("@id", id));
+  const itemFeed: ItemFeed = api.getData();
   let template = `
     <div class="bg-gray-600 min-h-screen pb-8">
       <div class="bg-white text-xl">
